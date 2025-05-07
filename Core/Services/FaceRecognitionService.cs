@@ -1,12 +1,23 @@
-using Core.Models;
-
 namespace Core.Services;
 
-public class FaceRecognitionService
+using Core.Interfaces;
+using Core.Models;
+using OpenCvSharp;
+using System.Threading.Tasks;
+
+public class FaceRecognitionService : IFaceRecognitionService
 {
-    public bool Recognize(byte[] frame, out Person match)
+    private readonly PeopleRepository repo;
+
+    public FaceRecognitionService(PeopleRepository repo)
     {
-        match = null;
-        return false;
+        this.repo = repo;
+    }
+
+    public async Task<Person> RecognizeAsync(byte[] frame)
+    {
+        // Complex ML inference here
+        await Task.Delay(50);
+        return null;
     }
 }

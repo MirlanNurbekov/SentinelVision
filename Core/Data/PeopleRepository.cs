@@ -1,7 +1,7 @@
+namespace Core.Data;
+
 using Core.Models;
 using System.Collections.Generic;
-
-namespace Core.Data;
 
 public class PeopleRepository
 {
