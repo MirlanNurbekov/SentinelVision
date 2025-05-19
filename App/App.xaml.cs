@@ -1,35 +1,77 @@
+using System;
 using System.Windows;
-using Core.Hardware;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using App.ViewModels;
+using Core.Data;
 using Core.Interfaces;
 using Core.Services;
-using Core.Data;
-using Microsoft.Extensions.DependencyInjection;
-using System;
+using Infrastructure.HardwareAdapters;
 
-public partial class App : Application
+namespace App
 {
-    private ServiceProvider provider;
-
-    protected override void OnStartup(StartupEventArgs e)
+    public partial class App : Application
     {
-        var services = new ServiceCollection();
+        private static readonly IHost Host;
 
-        services.AddSingleton<PeopleRepository>();
-        services.AddSingleton<IFaceRecognitionService, FaceRecognitionService>();
-        services.AddSingleton<ICameraController>(sp => new NetworkCameraController("192.168.0.100"));
-        services.AddSingleton<IDoorController>(sp => new SerialDoorController("COM3"));
-        services.AddSingleton<IElevatorController>(sp => new TcpElevatorController("http://192.168.0.200"));
-        services.AddSingleton<IEventBus>(sp => new EventBusService("localhost"));
+        static App()
+        {
+            Host = Host.CreateDefaultBuilder()
+                .ConfigureAppConfiguration((ctx, cfg) =>
+                {
+                    cfg.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                       .AddEnvironmentVariables();
+                })
+                .ConfigureLogging(log =>
+                {
+                    log.ClearProviders();
+                    log.AddConsole();
+                })
+                .ConfigureServices((ctx, services) =>
+                {
+                    var conf = ctx.Configuration;
 
-        services.AddSingleton<CctvService>();
-        services.AddSingleton<DoorControlService>();
-        services.AddSingleton<ElevatorTrackingService>();
+                    services.AddSingleton<PeopleRepository>();
+                    services.AddSingleton<IFaceRecognitionService, FaceRecognitionService>();
 
-        services.AddSingleton<MainViewModel>();
-        services.AddSingleton<Views.MainWindow>();
+                    services.AddSingleton<ICameraController>(sp =>
+                        new NetworkCameraController(conf["Hardware:Camera:Endpoint"]));
 
-        provider = services.BuildServiceProvider();
-        var win = provider.GetRequiredService<Views.MainWindow>();
-        win.Show();
+                    services.AddSingleton<IDoorController>(sp =>
+                        new SerialDoorController(
+                            conf["Hardware:Door:PortName"],
+                            int.Parse(conf["Hardware:Door:BaudRate"])));
+
+                    services.AddSingleton<IElevatorController>(sp =>
+                        new TcpElevatorController(conf["Hardware:Elevator:BaseUri"]));
+
+                    services.AddSingleton<IEventBus>(sp =>
+                        new EventBusService(conf["EventBus:Host"]));
+
+                    services.AddSingleton<CctvService>();
+                    services.AddSingleton<DoorControlService>();
+                    services.AddSingleton<ElevatorTrackingService>();
+
+                    services.AddSingleton<MainViewModel>();
+                    services.AddSingleton<MainWindow>();
+                })
+                .Build();
+        }
+
+        protected override async void OnStartup(StartupEventArgs e)
+        {
+            await Host.StartAsync();
+            Host.Services.GetRequiredService<MainWindow>().Show();
+            base.OnStartup(e);
+        }
+
+        protected override async void OnExit(ExitEventArgs e)
+        {
+            await Host.StopAsync(TimeSpan.FromSeconds(5));
+            Host.Dispose();
+            base.OnExit(e);
+        }
     }
 }
